@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Countdown Timer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: black;
+            color: white;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        h1 {
+            font-size: 5rem;
+            margin: 0.5em 0;
+        }
+        button {
+            font-size: 1.5rem;
+            padding: 0.5em 1em;
+            margin-top: 1em;
+            border: none;
+            border-radius: 5px;
+            background-color: #007BFF;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .timer-config {
+            margin: 1em 0;
+        }
+        .timer-config input {
+            font-size: 1.5rem;
+            width: 5rem;
+            text-align: center;
+        }
+        .color-picker {
+            display: flex;
+            justify-content: center;
+            margin-top: 1em;
+        }
+        .color-button {
+            width: 40px;
+            height: 40px;
+            margin: 0 5px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid white;
+        }
+    </style>
+</head>
+<body>
+    <div id="interactive-area" style="border: 2px solid white; padding: 20px; display: inline-block;">
+        <h1 id="timer-display">00:10</h1>
+        <div class="timer-config">
+            <label for="timer-input">Set Timer: </label>
+            <input type="number" id="timer-input" min="1" value="10">
+            <label for="sound-picker">Select Sound:</label>
+            <input type="file" id="sound-picker" accept="audio/mp3">
+        </div>
+        <div class="color-picker">
+            <div class="color-button" style="background-color: black;" data-color="black"></div>
+            <div class="color-button" style="background-color: white; border-color: black;" data-color="white"></div>
+            <div class="color-button" style="background-color: red;" data-color="red"></div>
+            <div class="color-button" style="background-color: orange;" data-color="orange"></div>
+            <div class="color-button" style="background-color: yellow;" data-color="yellow"></div>
+            <div class="color-button" style="background-color: green;" data-color="green"></div>
+            <div class="color-button" style="background-color: blue;" data-color="blue"></div>
+            <div class="color-button" style="background-color: indigo;" data-color="indigo"></div>
+            <div class="color-button" style="background-color: violet;" data-color="violet"></div>
+        </div>
+        <button id="start-reset-btn">Start / Reset</button>
+        <audio id="alert-sound" preload="auto"></audio>
+        <div>
+            <input type="checkbox" id="loop-toggle">
+            <label for="loop-toggle">Loop Timer</label>
+        </div>
+        <div>
+            <input type="checkbox" id="minutes-toggle">
+            <label for="minutes-toggle">Set Timer in Minutes</label>
+        </div>
+        <div>
+            <input type="checkbox" id="click-anywhere" checked>
+            <label for="click-anywhere">Click anywhere to reset</label>
+        </div>      
+    </div>
+
+    <script>
+        let timerDuration = 10;
+        let timeLeft = timerDuration;
+        let timerInterval = null;
+        let alertColor = "black";
+        let isLooping = false;
+        let startTime = null;
+        const timerDisplay = document.getElementById("timer-display");
+        const startResetButton = document.getElementById("start-reset-btn");
+        const timerInput = document.getElementById("timer-input");
+        const alertSound = document.getElementById("alert-sound");
+        const colorButtons = document.querySelectorAll(".color-button");
+        const loopToggle = document.getElementById("loop-toggle");
+        const minutesToggle = document.getElementById("minutes-toggle");
+        const clickAnywhere = document.getElementById("click-anywhere");
+        const soundPicker = document.getElementById("sound-picker");
+
+        // Check and load sound.txt or default.mp3
+        window.addEventListener("DOMContentLoaded", async () => {
+            const defaultSound = "default.mp3";
+
+            try {
+                const response = await fetch("sound.txt");
+                if (response.ok) {
+                    const soundFileName = await response.text();
+                    const trimmedFileName = soundFileName.trim();
+                    if (trimmedFileName.endsWith(".mp3")) {
+                        alertSound.src = trimmedFileName;
+                        console.log(`Using alert sound: ${trimmedFileName}`);
+                    } else {
+                        console.warn("Invalid file name in sound.txt. Using default sound.");
+                        alertSound.src = defaultSound;
+                    }
+                } else {
+                    console.warn("sound.txt not found or unreadable. Using default sound.");
+                    alertSound.src = defaultSound;
+                }
+            } catch (error) {
+                console.error("Error reading sound.txt:", error);
+                alertSound.src = defaultSound;
+            }
+        });
+
+        // Sound picker
+        soundPicker.addEventListener("change", (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const fileURL = URL.createObjectURL(file);
+                alertSound.src = fileURL;
+            }
+        });
+
+        // Format time as MM:SS
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+        }
+
+        // Update timer display
+        function updateDisplay() {
+            timerDisplay.textContent = formatTime(timeLeft);
+        }
+
+        // Start or reset the timer
+        function startOrResetTimer() {
+            clearInterval(timerInterval);
+
+            const rawInput = parseFloat(timerInput.value);
+            timeLeft = minutesToggle.checked ? Math.round(rawInput * 60) : Math.round(rawInput);
+            timerDuration = timeLeft;
+            updateDisplay();
+            document.body.style.backgroundColor = "black";
+
+            startTime = performance.now();
+            timerInterval = setInterval(countdown, 1000);
+        }
+
+        // Countdown logic
+        function countdown() {
+            const elapsedTime = Math.floor((performance.now() - startTime) / 1000);
+
+            if (elapsedTime >= timerDuration) {
+                clearInterval(timerInterval);
+                timeLeft = 0;
+                updateDisplay();
+                alertSound.play();
+                document.body.style.backgroundColor = alertColor;
+
+                if (isLooping) {
+                    timeLeft = timerDuration;
+                    startTime = performance.now();
+                    updateDisplay();
+                    timerInterval = setInterval(countdown, 1000);
+                }
+            } else {
+                timeLeft = timerDuration - elapsedTime;
+                updateDisplay();
+            }
+        }
+
+        // Event listeners
+        startResetButton.addEventListener("click", startOrResetTimer);
+        timerInput.addEventListener("change", () => {
+            const rawInput = parseFloat(timerInput.value);
+            timerDuration = minutesToggle.checked ? Math.round(rawInput * 60) : Math.round(rawInput);
+            timeLeft = timerDuration;
+            updateDisplay();
+        });
+        loopToggle.addEventListener("change", (e) => {
+            isLooping = e.target.checked;
+        });
+        document.body.addEventListener("click", (e) => {
+            const interactiveArea = document.getElementById("interactive-area");
+            if (clickAnywhere.checked && !interactiveArea.contains(e.target)) {
+                startOrResetTimer();
+            }
+        });
+        colorButtons.forEach(button => {
+            button.addEventListener("click", (e) => {
+                alertColor = e.target.getAttribute("data-color");
+            });
+        });
+
+        updateDisplay();
+    </script>
+</body>
+</html>
